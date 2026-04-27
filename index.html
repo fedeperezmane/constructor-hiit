@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -7,9 +6,10 @@
 <title>Constructor de HIITs</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
+html{width:100%;overflow-x:hidden}
 :root{--bg:#0A0A0A;--bg2:#141414;--bg3:#1C1C1C;--border:#252525;--border2:#333;--acc:#CBFF00;--acc-txt:#0A0A0A;--txt:#FFFFFF;--txt2:#888;--txt3:#444;--r:10px;--r2:8px;--r3:6px;}
 .lm{--bg:#F0F0EB;--bg2:#FFFFFF;--bg3:#E8E8E3;--border:#DDDDD8;--border2:#C8C8C3;--acc:#1A1A1A;--acc-txt:#CBFF00;--txt:#0A0A0A;--txt2:#666;--txt3:#AAA;}
-body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,sans-serif;min-height:100vh;font-size:14px;transition:background .25s,color .25s;overflow-x:hidden}
+body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,sans-serif;min-height:100vh;font-size:14px;transition:background .25s,color .25s;overflow-x:hidden;margin:0;padding:0;width:100%}
 button{cursor:pointer;border:none;font-family:inherit;transition:all .15s}
 input,select{font-family:inherit;transition:all .15s}
 input:focus,select:focus{outline:none}
@@ -26,7 +26,7 @@ input:focus,select:focus{outline:none}
 .hdr-tabs{display:flex;gap:0;padding:0;width:100%;border-top:1px solid var(--border)}
 .tab-btn{flex:1;padding:8px 4px;border-radius:0;background:transparent;color:var(--txt2);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;border-bottom:2px solid transparent;text-align:center}
 .tab-btn.act{background:transparent;color:var(--acc);border-bottom:2px solid var(--acc)}
-.main{flex:1;padding:12px;width:100%;box-sizing:border-box;min-height:60vh}
+.main{flex:1;padding:12px;width:100%;box-sizing:border-box;min-height:70vh;overflow-anchor:none}
 @media(min-width:700px){.main{padding:20px;max-width:960px;margin:0 auto;min-height:70vh}}
 .player-row{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
 .metrics-row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
@@ -129,7 +129,7 @@ input:focus,select:focus{outline:none}
 </style>
 </head>
 <body>
-<div style="display:flex;flex-direction:column;min-height:100vh">
+<div style="display:flex;flex-direction:column;min-height:100vh;width:100%;overflow-x:hidden">
 <header class="hdr">
   <div class="hdr-top">
     <div class="hdr-brand">
@@ -137,6 +137,7 @@ input:focus,select:focus{outline:none}
     <div>
       <div class="hdr-title">CONSTRUCTOR DE <span>HIITs</span></div>
       <div class="hdr-sub">by Fede Perez Manetti</div>
+    </div>
     </div>
     <div class="hdr-right">
       <button class="icon-btn" onclick="exportProfile()">&#128228; Exportar</button>
