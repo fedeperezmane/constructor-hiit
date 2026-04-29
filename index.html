@@ -306,9 +306,20 @@ async function shareResults(){
   var txt=buildShareText();if(!txt)return;
   var okEl=document.getElementById("share-ok");
   if(navigator.share){
-    try{await navigator.share({title:"HIIT Builder - Pasadas",text:txt});}catch(e){}
-  } else {
-    try{await navigator.clipboard.writeText(txt);if(okEl){okEl.style.display="block";setTimeout(function(){okEl.style.display="none";},3000);}}catch(e){alert(txt);}
+    try{await navigator.share({title:"HIIT Builder - Pasadas",text:txt});return;}catch(e){}
+  }
+  // Clipboard with iframe fallback
+  try{
+    await navigator.clipboard.writeText(txt);
+    if(okEl){okEl.style.display="block";setTimeout(function(){okEl.style.display="none";},3000);}
+  } catch(e){
+    // textarea fallback for iframes/restricted contexts
+    var ta=document.createElement("textarea");
+    ta.value=txt;ta.style.position="fixed";ta.style.top="0";ta.style.left="0";ta.style.opacity="0";
+    document.body.appendChild(ta);ta.focus();ta.select();
+    try{document.execCommand("copy");if(okEl){okEl.style.display="block";setTimeout(function(){okEl.style.display="none";},3000);}}
+    catch(e2){alert(txt);}
+    document.body.removeChild(ta);
   }
 }
 
@@ -414,7 +425,7 @@ function openPlayerModal(idx){
     +'<div style="flex:1 1 100px"><label class="fld-lbl">O directo (km/h)</label><input class="fld-inp" id="m-vmax-direct" type="number" step="0.1" value="'+(p?p.vmaxDirect||"":"")+'" placeholder="ej: 32.5" oninput="updateVmaxDirect()"></div>'
     +'</div>'
     +'<div class="computed" id="m-vmax-computed">'+(p&&p.vmax?'VMAX: <strong style="color:#F59E0B">'+p.vmax+'</strong> km/h &nbsp; ASR: <strong style="color:#EF4444">'+(p.asr||0)+"</strong> km/h":"")+"</div></div>";
-  html+='<div class="sub-box" style="margin-bottom:20px"><div class="sub-box-lbl" style="color:#22C55E">VIFT</div><div class="fld" style="margin:0"><label class="fld-lbl">Velocidad IFT km/h</label><input class="fld-inp" id="m-vift" type="number" step="0.5" value="'+(p&&p.vift&&p.vift>0?p.vift:"")+'" placeholder="ej: 17.5" oninput="updateViftD()"></div><div class="computed" id="m-vift-computed">'+(p&&p.vift&&p.vift>0?'VIFT: <strong style="color:#22C55E">'+p.vift+"</strong> km/h":"")+"</div></div>";
+
   html+='<button class="btn-acc" style="width:100%;font-size:15px" onclick="savePlayer('+idx+')">Guardar jugador</button>';
   document.getElementById("modal-body").innerHTML=html;
   document.getElementById("modal-overlay").style.display="flex";
@@ -449,8 +460,8 @@ function savePlayer(idx){
   var vmax10m=parseFloat(document.getElementById("m-vmax-inp").value)||0;
   var vmax=vmaxDirectRaw>0?vmaxDirectRaw:(vmax10m>0?calcVMAX(vmax10m):0);
   var asr=vmax>0?calcASR(vmax,vam):0;
-  var viftRaw=parseFloat(document.getElementById("m-vift").value);
-  var vift=viftRaw>0?viftRaw:(testId==="30_15"?parseFloat(vamRaw):0);
+  var viftRaw=0;
+  var vift=testId==="30_15"?parseFloat(vamRaw):0;
   var mTeam=document.getElementById("m-team");
   var teamId=mTeam?mTeam.value||null:null;
   var player={id:idx!==null?state.players[idx].id:Date.now().toString(),name:name,position:document.getElementById("m-pos").value,teamId:teamId,vam:vam,vamTest:testId,vamInput:vamRaw,vmax:vmax,vmaxDirect:vmaxDirectRaw||"",vmax10m:vmax10m||"",asr:asr,vift:vift};
@@ -494,8 +505,8 @@ function renderHiit(){
     } else {html+=renderFormatStep(cat,customFormats,varIdx,showCustomInput,"6");}
     html+=renderCampoStep(campo,"8");html+=renderGroupsStep(groups,"9");
   } else {
-    html+=renderFormatStep(cat,customFormats,varIdx,showCustomInput,"5");
-    if(h.mode==="dist")html+=renderCampoStep(campo,"6");
+    if(h.mode==="dist")html+=renderCampoStep(campo,"5");
+    html+=renderFormatStep(cat,customFormats,varIdx,showCustomInput,h.mode==="dist"?"6":"5");
     html+=renderGroupsStep(groups,h.mode==="dist"?"7":"6");
   }
   html+='<button class="calc-btn"'+(!players.length?' disabled=""':"")+'  onclick="doCalc()">Calcular</button>';
@@ -515,6 +526,44 @@ function prescRow(){
     +'<div style="display:flex;align-items:center;gap:6px">'+lbl+'REPS</span><div style="display:flex;gap:3px;flex-wrap:wrap">'+rb+"</div></div>"
     +pausaInp+"</div>";
 }
+
+
+function calcVol(){
+  try{
+    var h=getHiit(),cat=getCat(),vr=getVr();
+    if(!h||!cat||!vr)return null;
+    var tk=state.hiit.typeKey,variable=state.hiit.variable,pct=state.hiit.pct;
+    var campo=state.hiit.campo,series=state.hiit.series,reps=state.hiit.reps;
+    var surf=getSurf();
+    var isTempoD=(tk==="TEMPO"&&state.hiit.tempoMode==="dist");
+    var isSprint=(h.mode==="sprint");
+    var players=getActivePlayers().filter(function(p){return getBaseVal(p,variable)>0;});
+    if(!players.length)return null;
+    var distPerRep=0,codPerRep=0;
+    if(isTempoD){
+      distPerRep=+state.hiit.tempoDist||0;
+      var sh0=campo&&+campo>0?Math.max(1,Math.round(distPerRep/(+campo))):1;
+      codPerRep=sh0-1;
+    } else if(isSprint){
+      distPerRep=players.reduce(function(s,p){
+        var effV=variable==="ASR"?(p.vam||0)+(p.asr||0)*(pct/100):getBaseVal(p,variable)*(pct/100);
+        return s+corrSprintDist(effV,vr.w,surf);
+      },0)/players.length;
+    } else {
+      var avgSh=1;
+      distPerRep=players.reduce(function(s,p){
+        var vel=getSpeed(p,variable,pct);
+        var sh=campo&&+campo>0?autoShuttles(vel,vr.w,campo):1;
+        avgSh=sh;
+        return s+corrDist(vel,vr.w,sh,surf);
+      },0)/players.length;
+      codPerRep=avgSh-1;
+    }
+    var totalVol=Math.round(series*reps*distPerRep);
+    var totalCOD=series*reps*Math.round(codPerRep);
+    return {totalVol:totalVol,totalCOD:totalCOD};
+  }catch(e){return null;}
+}
 function renderFormatStep(cat,customFormats,varIdx,showCustomInput,stepN){
   var all=cat.v.concat(customFormats);
   var fb=all.map(function(v,i){var a=varIdx===i;return '<button class="sel-btn'+(a?" act":"")+'" style="'+(a?"color:#22C55E;border-color:#22C55E;background:#22C55E18":"")+'" onclick="setVarIdx('+i+')">'+v.l+"</button>";}).join("");
@@ -523,8 +572,17 @@ function renderFormatStep(cat,customFormats,varIdx,showCustomInput,stepN){
   if(showCustomInput){cf='<div class="custom-inp-row"><input type="number" class="custom-num" id="cw" placeholder="Trabajo" min="1"><span style="font-size:18px;font-weight:700;color:var(--txt2)">:</span><input type="number" class="custom-num" id="cr" placeholder="Descanso" min="1"><span style="color:var(--txt2);font-size:13px">seg</span><button class="btn-acc" style="padding:8px 14px;font-size:12px" onclick="addCustomFormat()">Agregar</button></div>';}
   var vr=all[varIdx]||all[0];
   var ms=vr?'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><div class="mini-stat"><div class="mini-stat-lbl">TRABAJO</div><div class="mini-stat-val">'+vr.w+'"</div></div><div class="mini-stat"><div class="mini-stat-lbl">DESCANSO</div><div class="mini-stat-val">'+vr.r+'"</div></div></div>':"";
-  return '<div class="hiit-step"><div class="step-hdr"><span>'+stepN+"</span>Formato y prescripcion</div>"
-    +'<div class="btns-wrap">'+fb+plus+"</div>"+cf+ms+prescRow()+"</div>";
+  var vol=calcVol();
+  var volBox='';
+  if(vol){
+    volBox='<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r2);padding:10px 14px;min-width:110px;text-align:center;flex-shrink:0">';
+    volBox+='<div style="font-size:9px;font-weight:800;text-transform:uppercase;color:var(--txt3);margin-bottom:4px">VOL EST.</div>';
+    volBox+='<div style="font-size:22px;font-weight:900;color:var(--acc)">'+vol.totalVol+'<span style="font-size:12px">m</span></div>';
+    if(vol.totalCOD>0)volBox+='<div style="font-size:10px;color:var(--txt3);font-weight:600;margin-top:2px">'+vol.totalCOD+' COD</div>';
+    volBox+='</div>';
+  }
+  return '<div class="hiit-step"><div class="step-hdr"><span>'+stepN+'</span>Formato y prescripcion</div>'
+    +'<div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap"><div style="flex:1 1 200px"><div class="btns-wrap">'+fb+plus+'</div>'+cf+ms+prescRow()+'</div>'+volBox+'</div></div>';
 }
 function renderCampoStep(campo,stepN){
   var cp=[40,50,60,80,100,105].map(function(d){return '<button class="campo-pre'+(+campo===d?" act":"")+'" onclick="setCampo('+d+')">'+d+"m</button>";}).join("");
@@ -581,14 +639,39 @@ function renderResults(players){
   tags.push([surf.label,"#888"]);if(campo)tags.push([campo+"m","#06B6D4"]);
   var tagsHtml=tags.map(function(tg){return '<span class="presc-tag" style="background:'+tg[1]+'20;color:'+tg[1]+'">'+tg[0]+"</span>";}).join("");
   var body="";var lastGrp=-1;
+  var series=state.hiit.series,reps=state.hiit.reps;
+  // group by grp number to compute volumes
+  var grpMap={};
   grped.forEach(function(p){
-    if(p.grp!==lastGrp){var gc=GCOLS[p.grp%GCOLS.length];body+='<div class="group-hdr" style="color:'+gc+';background:'+gc+'15">&#9679; GRUPO '+(p.grp+1)+"</div>";lastGrp=p.grp;}
+    if(!grpMap[p.grp])grpMap[p.grp]=[];
+    grpMap[p.grp].push(p);
+  });
+  grped.forEach(function(p){
+    if(p.grp!==lastGrp){
+      // Close previous group with volume
+      if(lastGrp>=0&&!isSprint){
+        var grpPlayers=grpMap[lastGrp];
+        var avgDist=grpPlayers.reduce(function(s,pp){return s+(parseFloat(pp.primary)||0);},0)/grpPlayers.length;
+        var grpVol=Math.round(series*reps*avgDist);
+        var gc0=GCOLS[lastGrp%GCOLS.length];
+        body+='<div style="padding:6px 14px 10px;font-size:11px;color:'+gc0+';font-weight:700">Volumen grupo: '+grpVol+'m <span style="color:var(--txt3);font-weight:600;font-size:10px">('+series+'s x '+reps+'r x ~'+Math.round(avgDist)+'m)</span></div>';
+      }
+      var gc=GCOLS[p.grp%GCOLS.length];body+='<div class="group-hdr" style="color:'+gc+';background:'+gc+'15">&#9679; GRUPO '+(p.grp+1)+"</div>";lastGrp=p.grp;
+    }
     var gc=GCOLS[p.grp%GCOLS.length];
     body+='<div class="res-row" style="border-left:3px solid '+gc+'"><div class="res-inner"><div class="res-name"><div class="res-pname">'+p.name+"</div>"+(p.position?'<div class="res-ppos">'+p.position+"</div>":"")+'</div><div style="margin-right:8px;text-align:center"><div style="font-size:9px;font-weight:800;text-transform:uppercase;color:var(--txt3)">'+variable+'</div><div style="font-size:13px;font-weight:700">'+p.baseVal+' km/h</div></div><div style="margin-left:auto;text-align:right"><div class="big-num" style="color:'+gc+'">'+p.primary+'</div><div class="res-note">'+p.secondary+"</div></div></div></div>";
   });
+  // Close last group
+  if(lastGrp>=0&&!isSprint&&grped.length>0){
+    var grpPlayers=grpMap[lastGrp];
+    var avgDist=grpPlayers.reduce(function(s,pp){return s+(parseFloat(pp.primary)||0);},0)/grpPlayers.length;
+    var grpVol=Math.round(series*reps*avgDist);
+    var gc0=GCOLS[lastGrp%GCOLS.length];
+    body+='<div style="padding:6px 14px 10px;font-size:11px;color:'+gc0+';font-weight:700">Volumen grupo: '+grpVol+'m <span style="color:var(--txt3);font-weight:600;font-size:10px">('+series+'s x '+reps+'r x ~'+Math.round(avgDist)+'m)</span></div>';
+  }
   var missing=players.length-rows.length;
   var mn=missing>0?'<div class="no-data-note">'+missing+' jugador'+(missing>1?"es":"")+" sin datos de "+variable+"</div>":"";
-  var series=state.hiit.series,reps=state.hiit.reps,pausaSeries=state.hiit.pausaSeries;
+  var pausaSeries=state.hiit.pausaSeries;
   var prescInfo='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border)">'
     +'<div class="mini-stat"><div class="mini-stat-lbl">SERIES</div><div class="mini-stat-val" style="color:var(--acc)">'+series+'</div></div>'
     +'<div class="mini-stat"><div class="mini-stat-lbl">REPS</div><div class="mini-stat-val" style="color:var(--acc)">'+reps+'</div></div>'
