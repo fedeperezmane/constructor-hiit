@@ -222,8 +222,8 @@ var state={
 };
 
 var SKEY="hiit_builder_v2";
-async function loadData(){try{var r=await window.storage.get(SKEY);if(r&&r.value){var d=JSON.parse(r.value);state.teams=d.teams||[];state.players=d.players||[];state.activeTeamId=d.activeTeamId||"all";}}catch(e){}}
-async function saveData(){try{await window.storage.set(SKEY,JSON.stringify({teams:state.teams,players:state.players,activeTeamId:state.activeTeamId}));}catch(e){}}
+async function loadData(){try{var d=JSON.parse(localStorage.getItem(SKEY)||"{}");state.teams=d.teams||[];state.players=d.players||[];state.activeTeamId=d.activeTeamId||"all";}catch(e){}}
+async function saveData(){try{localStorage.setItem(SKEY,JSON.stringify({teams:state.teams,players:state.players,activeTeamId:state.activeTeamId}));}catch(e){}}
 
 function exportProfile(){
   var data={version:2,teams:state.teams,players:state.players,exportedAt:new Date().toISOString()};
